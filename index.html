@@ -42,8 +42,11 @@
         </div>
 
         <button id="genBtn" onclick="generate()">Initialize Rendering</button>
-        <div id="status">Systems Nominal</div>
+        <div id="status"><span style="color: #10b981;">●</span> Systems Nominal</div>
+        
         <video id="output" controls autoplay loop></video>
+        
+        <button id="dlBtn" style="display:none; background: #10b981; margin-top: 10px;" onclick="downloadVideo()">DOWNLOAD VIDEO</button>
     </div>
 
     <script type="module">
@@ -51,6 +54,12 @@
 
         let currentMode = 't2v';
         let base64Image = null;
+        let lastResultUrl = null;
+
+        // Ask for notification permission
+        if ("Notification" in window && Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
 
         window.switchMode = (mode) => {
             currentMode = mode;
@@ -64,30 +73,41 @@
             const reader = new FileReader();
             reader.onload = (e) => {
                 base64Image = e.target.result;
-                document.getElementById('uploadLabel').innerText = "✅ Image Locked: " + file.name;
+                document.getElementById('uploadLabel').innerText = "✅ Image Locked";
             };
             reader.readAsDataURL(file);
+        };
+
+        window.downloadVideo = () => {
+            if(!lastResultUrl) return;
+            const a = document.createElement('a');
+            a.href = lastResultUrl;
+            a.download = `PromptVault_${Date.now()}.mp4`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         };
 
         window.generate = async () => {
             const btn = document.getElementById('genBtn');
             const status = document.getElementById('status');
             const video = document.getElementById('output');
+            const dlBtn = document.getElementById('dlBtn');
             const prompt = document.getElementById('prompt').value;
             const ratio = document.getElementById('ratio').value;
 
             if(!prompt) return alert("Prompt required.");
-            if(currentMode === 'i2v' && !base64Image) return alert("Please upload an image.");
-
+            
             try {
                 btn.disabled = true;
-                btn.innerText = "Syncing...";
-                status.innerText = "Connecting to Engine...";
+                dlBtn.style.display = "none";
+                btn.innerText = "COMMAND SENT...";
+                status.innerHTML = `<span style="color: #3b82f6;">●</span> Syncing with Engine...`;
                 
                 const client = await Client.connect("r3gm/wan2-2-fp8da-aoti-preview"); 
                 
-                status.innerText = "Rendering frames...";
-                btn.innerText = "Generating...";
+                status.innerHTML = `<span style="color: #8b5cf6;">●</span> Rendering Cloud Frames...`;
+                btn.innerText = "GENERATING...";
 
                 const payload = currentMode === 't2v' ? {
                     prompt: prompt,
@@ -103,16 +123,25 @@
                 const result = await client.predict(currentMode === 't2v' ? "/generate_video" : "/generate_video_i2v", payload);
 
                 if (result.data && result.data[0]) {
-                    video.src = result.data[0].url;
+                    lastResultUrl = result.data[0].url;
+                    video.src = lastResultUrl;
                     video.style.display = "block";
-                    status.innerText = "Sequence Exported Successfully.";
+                    dlBtn.style.display = "block";
+                    status.innerHTML = `<span style="color: #10b981;">●</span> SEQUENCE COMPLETE`;
+                    
+                    // Haptic & Visual Alert
+                    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                    if (Notification.permission === "granted") {
+                        new Notification("PromptVault Studio", { body: "Your video is ready!" });
+                    }
                 }
             } catch (err) {
                 console.error(err);
-                status.innerText = "Engine busy. Re-attempt in 30s.";
+                status.innerHTML = `<span style="color: #ef4444;">●</span> ENGINE BUSY - AUTO-RETRYING...`;
+                setTimeout(generate, 6000); // Wait 6 seconds and try again automatically
             } finally {
                 btn.disabled = false;
-                btn.innerText = "Initialize Rendering";
+                btn.innerText = "INITIALIZE RENDERING";
             }
         };
     </script>
