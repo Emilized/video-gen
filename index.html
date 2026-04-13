@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Vault</title>
+    <style>
+        :root { --accent: #3b82f6; --bg: #0f172a; }
+        body { background: var(--bg); color: white; font-family: 'Plus Jakarta Sans', sans-serif; padding: 20px; text-align: center; }
+        .container { max-width: 500px; margin: auto; }
+        textarea { width: 100%; height: 120px; border-radius: 15px; padding: 15px; background: #1e293b; color: white; border: 1px solid #334155; font-size: 16px; box-sizing: border-box; outline: none; transition: 0.3s; }
+        textarea:focus { border-color: var(--accent); }
+        button { background: var(--accent); color: white; padding: 18px; border-radius: 50px; border: none; font-weight: 800; margin-top: 20px; width: 100%; cursor: pointer; transition: 0.2s; }
+        button:active { transform: scale(0.98); }
+        button:disabled { background: #334155; cursor: not-allowed; }
+        #status { margin-top: 15px; font-size: 14px; color: #94a3b8; font-weight: 600; }
+        video { width: 100%; margin-top: 20px; border-radius: 20px; display: none; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="letter-spacing: -1px;">🎥 AI VIDEO GENERATOR</h2>
+        <textarea id="prompt" placeholder="Describe the scene... (e.g. A hyper-realistic robot drinking coffee in a neon cafe)"></textarea>
+        <button id="genBtn" onclick="generate()">GENERATE VIDEO</button>
+        <div id="status">Ready to build</div>
+        <video id="output" controls autoplay loop></video>
+    </div>
+
+    <script type="module">
+        import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
+
+        window.generate = async () => {
+            const btn = document.getElementById('genBtn');
+            const status = document.getElementById('status');
+            const video = document.getElementById('output');
+            const promptValue = document.getElementById('prompt').value;
+
+            if(!promptValue) return alert("Please enter a prompt first!");
+
+            try {
+                btn.disabled = true;
+                btn.innerText = "CONNECTING...";
+                status.innerText = "Waking up the engine...";
+                
+                // Connection to the Wan2.2 Public Engine
+                const client = await Client.connect("r3gm/wan2-2-fp8da-aoti-preview"); 
+                
+                status.innerText = "Engine busy? Wait for your turn in queue...";
+                btn.innerText = "IN QUEUE...";
+
+                // Specific API parameters for r3gm/wan2-2
+                const result = await client.predict("/generate_video", { 
+                    prompt: promptValue,
+                    seed: -1, // Random seed for a new result every time
+                    aspect_ratio: "1280*720" // Standard 16:9 HD
+                });
+
+                if (result.data && result.data[0]) {
+                    video.src = result.data[0].url;
+                    video.style.display = "block";
+                    status.innerText = "Success! Long-press video to save.";
+                } else {
+                    throw new Error("No video data returned.");
+                }
+
+            } catch (err) {
+                console.error(err);
+                status.innerText = "Engine over capacity. Try again in 60s.";
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "GENERATE VIDEO";
+            }
+        };
+    </script>
+</body>
+</html>
