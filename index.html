@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PromptVault | Pro Studio</title>
+    <title>PromptVault | Multi-Engine Studio</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -16,7 +16,7 @@
             <button class="tab-btn" id="i2vTab" onclick="switchMode('i2v')">IMAGE TO VIDEO</button>
         </div>
 
-        <textarea id="prompt" placeholder="Describe the motion..."></textarea>
+        <textarea id="prompt" placeholder="Envision the motion..."></textarea>
         
         <div id="imageUpload" class="upload-box" onclick="document.getElementById('fileInput').click()">
             <span id="uploadLabel">Tap to upload reference photo</span>
@@ -25,18 +25,18 @@
 
         <div class="controls">
             <div class="control-item">
+                <label>Engine</label>
+                <select id="engineSelect">
+                    <option value="r3gm/wan2-2-fp8da-aoti-preview">Wan2.2 (High Quality)</option>
+                    <option value="KingNish/wan2-2-fast">Wan2.2 (Turbo/Fast)</option>
+                    <option value="Lightricks/LTX-Video">LTX (Real-time)</option>
+                </select>
+            </div>
+            <div class="control-item">
                 <label>Ratio</label>
                 <select id="ratio">
                     <option value="1280*720">16:9 (Reels)</option>
                     <option value="720*1280">9:16 (TikTok)</option>
-                    <option value="1024*1024">1:1 (Post)</option>
-                </select>
-            </div>
-            <div class="control-item">
-                <label>Length</label>
-                <select id="duration">
-                    <option value="81">Standard (5s)</option>
-                    <option value="121">Extended (8s)</option>
                 </select>
             </div>
         </div>
@@ -45,8 +45,8 @@
         <div id="status"><span style="color: #10b981;">●</span> Systems Nominal</div>
         
         <video id="output" controls autoplay loop></video>
-        
         <button id="dlBtn" style="display:none; background: #10b981; margin-top: 10px;" onclick="downloadVideo()">DOWNLOAD VIDEO</button>
+        <button id="resetBtn" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid #ef4444; font-size: 10px; padding: 10px; margin-top: 10px; width: 100%; border-radius: 12px;" onclick="location.reload()">FORCE RESET ENGINE</button>
     </div>
 
     <script type="module">
@@ -55,11 +55,6 @@
         let currentMode = 't2v';
         let base64Image = null;
         let lastResultUrl = null;
-
-        // Ask for notification permission
-        if ("Notification" in window && Notification.permission !== "granted") {
-            Notification.requestPermission();
-        }
 
         window.switchMode = (mode) => {
             currentMode = mode;
@@ -82,7 +77,7 @@
             if(!lastResultUrl) return;
             const a = document.createElement('a');
             a.href = lastResultUrl;
-            a.download = `PromptVault_${Date.now()}.mp4`;
+            a.download = `PromptVault_AI_${Date.now()}.mp4`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -93,55 +88,50 @@
             const status = document.getElementById('status');
             const video = document.getElementById('output');
             const dlBtn = document.getElementById('dlBtn');
-            const prompt = document.getElementById('prompt').value;
+            const engine = document.getElementById('engineSelect').value;
+            const promptValue = document.getElementById('prompt').value;
             const ratio = document.getElementById('ratio').value;
 
-            if(!prompt) return alert("Prompt required.");
-            
+            if(!promptValue) return alert("System requires a prompt.");
+
             try {
                 btn.disabled = true;
                 dlBtn.style.display = "none";
                 btn.innerText = "COMMAND SENT...";
-                status.innerHTML = `<span style="color: #3b82f6;">●</span> Syncing with Engine...`;
+                status.innerHTML = `<span style="color: #3b82f6;">●</span> Syncing with ${engine}...`;
                 
-                const client = await Client.connect("r3gm/wan2-2-fp8da-aoti-preview"); 
+                const client = await Client.connect(engine); 
                 
                 status.innerHTML = `<span style="color: #8b5cf6;">●</span> Rendering Cloud Frames...`;
                 btn.innerText = "GENERATING...";
 
-                const payload = currentMode === 't2v' ? {
-                    prompt: prompt,
-                    seed: -1,
-                    aspect_ratio: ratio
-                } : {
-                    input_image: base64Image,
-                    prompt: prompt,
+                // Determine endpoint based on engine
+                const endpoint = engine.includes("LTX") ? "/predict" : (currentMode === 't2v' ? "/generate_video" : "/generate_video_i2v");
+
+                const payload = {
+                    prompt: promptValue,
                     seed: -1,
                     aspect_ratio: ratio
                 };
+                if(currentMode === 'i2v') payload.input_image = base64Image;
 
-                const result = await client.predict(currentMode === 't2v' ? "/generate_video" : "/generate_video_i2v", payload);
+                const result = await client.predict(endpoint, payload);
 
                 if (result.data && result.data[0]) {
                     lastResultUrl = result.data[0].url;
                     video.src = lastResultUrl;
                     video.style.display = "block";
                     dlBtn.style.display = "block";
-                    status.innerHTML = `<span style="color: #10b981;">●</span> SEQUENCE COMPLETE`;
+                    status.innerHTML = `<span style="color: #10b981;">●</span> SEQUENCE EXPORTED`;
                     
-                    // Haptic & Visual Alert
                     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-                    if (Notification.permission === "granted") {
-                        new Notification("PromptVault Studio", { body: "Your video is ready!" });
-                    }
                 }
             } catch (err) {
                 console.error(err);
-                status.innerHTML = `<span style="color: #ef4444;">●</span> ENGINE BUSY - AUTO-RETRYING...`;
-                setTimeout(generate, 6000); // Wait 6 seconds and try again automatically
+                status.innerHTML = `<span style="color: #ef4444;">●</span> ENGINE BUSY. SWITCH ENGINE OR RETRY.`;
             } finally {
                 btn.disabled = false;
-                btn.innerText = "INITIALIZE RENDERING";
+                btn.innerText = "Initialize Rendering";
             }
         };
     </script>
