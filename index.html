@@ -40,19 +40,19 @@
             try {
                 btn.disabled = true;
                 btn.innerText = "CONNECTING...";
-                status.innerText = "Waking up the engine...";
+                status.innerText = "Waking up the r3gm engine...";
                 
-                // Connection to the Wan2.2 Public Engine
+                // CONNECTING TO THE PUBLIC ENGINE DIRECTLY
                 const client = await Client.connect("r3gm/wan2-2-fp8da-aoti-preview"); 
                 
-                status.innerText = "Engine busy? Wait for your turn in queue...";
+                status.innerText = "Engine busy? Checking queue...";
                 btn.innerText = "IN QUEUE...";
 
                 // Specific API parameters for r3gm/wan2-2
                 const result = await client.predict("/generate_video", { 
                     prompt: promptValue,
-                    seed: -1, // Random seed for a new result every time
-                    aspect_ratio: "1280*720" // Standard 16:9 HD
+                    seed: -1, 
+                    aspect_ratio: "1280*720" 
                 });
 
                 if (result.data && result.data[0]) {
@@ -60,12 +60,12 @@
                     video.style.display = "block";
                     status.innerText = "Success! Long-press video to save.";
                 } else {
-                    throw new Error("No video data returned.");
+                    throw new Error("No video returned.");
                 }
 
             } catch (err) {
                 console.error(err);
-                status.innerText = "Engine over capacity. Try again in 60s.";
+                status.innerText = "Engine busy or capacity reached. Try again in 60s.";
             } finally {
                 btn.disabled = false;
                 btn.innerText = "GENERATE VIDEO";
